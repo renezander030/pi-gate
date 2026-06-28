@@ -1,10 +1,10 @@
 {
-  "name": "@reneza/pi-evaluator",
+  "name": "@reneza/pi-gate",
   "version": "0.1.0",
   "description": "Harness-owned deterministic evaluator for Pi agent output",
   "type": "module",
-  "bin": { "pi-evaluator": "./pi-evaluator" },
+  "bin": { "pi-gate": "./pi-gate" },
   "scripts": { "test": "bash test/run.sh" },
-  "files": ["pi-evaluator", "src/", "README.md"],
+  "files": ["pi-gate", "src/", "README.md"],
   "license": "MIT"
 }

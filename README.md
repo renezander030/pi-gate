@@ -1,4 +1,4 @@
-# pi-evaluator
+# pi-gate
 
 Harness-owned deterministic verification layer for **Pi agent** output. The agent can
 *request* evaluation but cannot choose or modify the trusted evaluator commands,
@@ -9,7 +9,7 @@ Built on [cli-foundation](../../claude/cli-foundation/) — JSON output by defau
 
 ## Why
 
-An agent that can edit the very checks that gate its output isn't being checked. pi-evaluator
+An agent that can edit the very checks that gate its output isn't being checked. pi-gate
 puts the evaluator **outside** the agent's writable root, evaluates agent output as a
 **patch applied to a throwaway clone** of the real repo, runs checks with **network off**
 and **hard timeouts**, and only lets changes reach the real repo on a passing report or an
@@ -19,7 +19,7 @@ and **hard timeouts**, and only lets changes reach the real repo on a passing re
 
 | Invariant | How |
 |---|---|
-| Evaluator config + state live outside the agent tree | trusted manifests in `~/.config/pi-evaluator/manifests/`, state in `~/.local/state/pi-evaluator/` — never in the repo |
+| Evaluator config + state live outside the agent tree | trusted manifests in `~/.config/pi-gate/manifests/`, state in `~/.local/state/pi-gate/` — never in the repo |
 | Agent working tree is read-only to the evaluator | patch built via a throwaway `GIT_INDEX_FILE`; the real index is never touched |
 | Eval runs on a disposable copy, not the agent tree | fresh `git clone --local --no-hardlinks` of committed `HEAD` |
 | Network disabled by default | every check runs under a rootless **pid+net namespace** (`unshare -rnpf`); only `network:true` checks get out — verified against real outbound TCP |
@@ -29,12 +29,12 @@ and **hard timeouts**, and only lets changes reach the real repo on a passing re
 ## CLI
 
 ```
-pi-evaluator eval plan      [--repo PATH] [--staging PATH]   # show selected manifest + checks
-pi-evaluator eval run       [--repo PATH] [--staging PATH]   # evaluate, write machine report
-pi-evaluator eval report    --json                           # print last report
-pi-evaluator eval trust                                      # promote detected manifest (after review)
-pi-evaluator apply                                           # land patch IFF report passed
-pi-evaluator apply --override "<reason>"                     # force-apply failing patch, with reason
+pi-gate eval plan      [--repo PATH] [--staging PATH]   # show selected manifest + checks
+pi-gate eval run       [--repo PATH] [--staging PATH]   # evaluate, write machine report
+pi-gate eval report    --json                           # print last report
+pi-gate eval trust                                      # promote detected manifest (after review)
+pi-gate apply                                           # land patch IFF report passed
+pi-gate apply --override "<reason>"                     # force-apply failing patch, with reason
 ```
 
 - `--repo` — the **real** repo (canonical target, kept clean until `apply`). Default: cwd.
@@ -45,7 +45,7 @@ mode: checks run, but `apply` requires `eval trust` (human review) or an overrid
 
 ## Manifest
 
-Versioned JSON, owned by the harness (`~/.config/pi-evaluator/manifests/<repoId>.json`).
+Versioned JSON, owned by the harness (`~/.config/pi-gate/manifests/<repoId>.json`).
 Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see `src/profiles.js`).
 
 ```jsonc
@@ -57,7 +57,7 @@ Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see `src/profiles.
       "timeoutMs": 300000, "env": {}, "network": false }
   ],
   "allowlistChanged": ["node_modules/**", ".git/**", ".npm/**"],
-  "sensitivePatterns": ["**/*.test.*", ".github/**", "package.json", ".pi-evaluator/**"]
+  "sensitivePatterns": ["**/*.test.*", ".github/**", "package.json", ".pi-gate/**"]
 }
 ```
 

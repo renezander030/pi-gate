@@ -1,4 +1,4 @@
 node_modules/
-.pi-evaluator-cache.json
+.pi-gate-cache.json
 *.log
 .DS_Store

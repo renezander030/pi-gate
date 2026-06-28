@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# pi-evaluator slice-1 end-to-end + tamper tests.
+# pi-gate slice-1 end-to-end + tamper tests.
 # Builds a throwaway "real repo" and a separate "agent staging tree", then drives
-# pi-evaluator through the gate for benign, failing, and tampering patches.
+# pi-gate through the gate for benign, failing, and tampering patches.
 set -u
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
-PISAFE="$HERE/pi-evaluator"
+PISAFE="$HERE/pi-gate"
 PASS=0; FAIL=0
 ok()   { echo "  ok   - $1"; PASS=$((PASS+1)); }
 bad()  { echo "  FAIL - $1"; FAIL=$((FAIL+1)); }
@@ -78,15 +78,15 @@ echo "$SENS" | grep -q 'foo.test.js' && echo "$SENS" | grep -q 'package.json' &&
 
 echo "== T6: evaluator config is NOT inside the agent tree =="
 # The trusted manifest lives under XDG_CONFIG_HOME, never in the repo/staging tree.
-[ -f "$XDG_CONFIG_HOME/pi-evaluator/manifests"/*.json ] 2>/dev/null && ok "trusted manifest stored in harness-owned config dir" || bad "trusted manifest not in harness dir"
-ls "$REAL"/.pi-evaluator* >/dev/null 2>&1 && bad "evaluator config leaked into real repo" || ok "no evaluator config in agent-writable repo"
+[ -f "$XDG_CONFIG_HOME/pi-gate/manifests"/*.json ] 2>/dev/null && ok "trusted manifest stored in harness-owned config dir" || bad "trusted manifest not in harness dir"
+ls "$REAL"/.pi-gate* >/dev/null 2>&1 && bad "evaluator config leaked into real repo" || ok "no evaluator config in agent-writable repo"
 
 echo "== T7: network is a real OS boundary (off by default, opt-in only) =="
 if unshare -rnpf --mount-proc true 2>/dev/null; then
   git -C "$REAL" checkout -q -- . ; git -C "$REAL" clean -qfd
   STG="$(clone_staging)"; echo 'module.exports = 42; // net-test' > "$STG/foo.js"
   RID=$(git -C "$REAL" rev-list --max-parents=0 HEAD)
-  MAN="$XDG_CONFIG_HOME/pi-evaluator/manifests/$RID.json"; mkdir -p "$(dirname "$MAN")"
+  MAN="$XDG_CONFIG_HOME/pi-gate/manifests/$RID.json"; mkdir -p "$(dirname "$MAN")"
   netcheck() { cat > "$MAN" <<JSON
 {"version":1,"profile":"generic","checks":[{"id":"tcp",$1"command":"timeout 4 bash -c 'cat </dev/null >/dev/tcp/1.1.1.1/53' 2>&1 && echo REACHED || (echo NO_NET; exit 7)","timeoutMs":10000}],"allowlistChanged":["**"],"sensitivePatterns":[]}
 JSON

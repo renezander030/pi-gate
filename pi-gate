@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// pi-evaluator — harness-owned deterministic evaluator for Pi agent output.
+// pi-gate — harness-owned deterministic evaluator for Pi agent output.
 // Agent-first CLI: JSON output by default, -H/--human for a table.
 // Built on cli-foundation (see ../../claude/cli-foundation/foundation.js).
 import * as fdn from '../../claude/cli-foundation/foundation.js';
