@@ -1,0 +1,10 @@
+{
+  "name": "@reneza/pi-safe",
+  "version": "0.1.0",
+  "description": "Harness-owned deterministic evaluator for Pi agent output",
+  "type": "module",
+  "bin": { "pi-safe": "./pi-safe" },
+  "scripts": { "test": "bash test/run.sh" },
+  "files": ["pi-safe", "src/", "README.md"],
+  "license": "MIT"
+}

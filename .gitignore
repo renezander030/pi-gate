@@ -1,0 +1,4 @@
+node_modules/
+.pi-safe-cache.json
+*.log
+.DS_Store
