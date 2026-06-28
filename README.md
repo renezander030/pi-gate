@@ -1,30 +1,56 @@
 # pi-gate
 
-Harness-owned deterministic verification layer for **Pi agent** output. The agent can
-*request* evaluation but cannot choose or modify the trusted evaluator commands,
-policies, baselines, or allowlists.
+**A deterministic gate for AI-agent code changes.** It takes the patch an agent produced,
+applies it to a throwaway clone of your repo, runs your checks with the network off and
+hard timeouts, and only lets the change reach the real repo if those checks pass — or you
+explicitly override. The agent can *request* evaluation but cannot edit the checks,
+policies, baselines, or allowlists that judge it.
 
-Built on cli-foundation (vendored in `vendor/`) — JSON output by default,
-`-H/--human` for tables. Zero runtime dependencies.
+Zero runtime dependencies. JSON output by default, `-H/--human` for tables.
 
-## Why
+> An agent that can edit the very checks that gate its output isn't being checked. pi-gate
+> keeps the evaluator, its config, and its state **outside the agent's writable root**, so
+> "the tests pass" can't be made true by editing the tests.
 
-An agent that can edit the very checks that gate its output isn't being checked. pi-gate
-puts the evaluator **outside** the agent's writable root, evaluates agent output as a
-**patch applied to a throwaway clone** of the real repo, runs checks with **network off**
-and **hard timeouts**, and only lets changes reach the real repo on a passing report or an
-**explicit human override**.
+## How it works
 
-## Trust model (non-negotiables, all enforced)
+```
+agent's staging tree ─┐
+                      ├─▶ compute patch (vs HEAD, via throwaway git index)
+real repo @ HEAD ─────┘            │
+                                   ▼
+                 fresh `git clone` of HEAD  ──▶  apply patch  ──▶  run checks
+                 (disposable, network off)                            │
+                                                                      ▼
+                                            JSON report + apply decision
+                                                                      │
+                              pass & trusted ──▶ `apply` lands it in the real repo
+                              fail / untrusted ─▶ blocked, or `apply --override "reason"`
+```
 
-| Invariant | How |
-|---|---|
-| Evaluator config + state live outside the agent tree | trusted manifests in `~/.config/pi-gate/manifests/`, state in `~/.local/state/pi-gate/` — never in the repo |
-| Agent working tree is read-only to the evaluator | patch built via a throwaway `GIT_INDEX_FILE`; the real index is never touched |
-| Eval runs on a disposable copy, not the agent tree | fresh `git clone --local --no-hardlinks` of committed `HEAD` |
-| Network disabled by default | every check runs under a rootless **pid+net namespace** (`unshare -rnpf`); only `network:true` checks get out — verified against real outbound TCP |
-| Hard timeouts, fixed env | coreutils `timeout -s KILL` inside the pid-ns + spawn backstop; minimal deterministic env, no agent env leakage |
-| Real repo changes only on pass / override | apply gate; stale-report tripwire (staged patch id must match report) |
+## Install
+
+Requires **Node ≥ 18**, **git**, and a Linux host with rootless user namespaces for the
+network/pid sandbox (see [Requirements](#requirements)).
+
+```sh
+git clone https://github.com/renezander030/pi-gate
+ln -s "$PWD/pi-gate/pi-gate" /usr/local/bin/pi-gate   # or add to PATH
+pi-gate help
+```
+
+## Quick start
+
+```sh
+# real repo kept clean; --staging is the agent's working tree (a clone it edited)
+pi-gate eval plan  --repo /path/to/repo --staging /path/to/agent-tree   # what will run
+pi-gate eval run   --repo /path/to/repo --staging /path/to/agent-tree -H # evaluate
+pi-gate eval trust --repo /path/to/repo                                  # bless the checks (once)
+pi-gate apply      --repo /path/to/repo --staging /path/to/agent-tree    # land it if it passed
+```
+
+Unknown repos start in **detect-only** mode: checks run, but `apply` is withheld until you
+review the detected manifest and `eval trust` it (or pass an override).
 
 ## CLI
 
@@ -40,13 +66,21 @@ pi-gate apply --override "<reason>"                     # force-apply failing pa
 - `--repo` — the **real** repo (canonical target, kept clean until `apply`). Default: cwd.
 - `--staging` — the **agent's** working tree (a clone of `--repo` it edited). Default: `--repo`.
 
-The patch = `--staging`'s uncommitted work vs `HEAD`. Unknown repos start in **detect-only**
-mode: checks run, but `apply` requires `eval trust` (human review) or an override.
+## Guarantees (all enforced and tested)
+
+| Invariant | How |
+|---|---|
+| Evaluator config + state live outside the agent tree | trusted manifests in `~/.config/pi-gate/manifests/`, state in `~/.local/state/pi-gate/` — never in the repo |
+| Agent working tree is read-only to the evaluator | patch built via a throwaway `GIT_INDEX_FILE`; the real index is never touched |
+| Checks run on a disposable copy, not the agent tree | fresh `git clone --local --no-hardlinks` of committed `HEAD` |
+| Network disabled by default | every check runs under a rootless **pid+net namespace** (`unshare -rnpf`); only `network:true` checks get out — verified against real outbound TCP |
+| Hard timeouts, fixed env | coreutils `timeout -s KILL` inside the pid-ns + spawn backstop; minimal deterministic env, no agent env leakage |
+| Real repo changes only on pass / override | apply gate + stale-report tripwire (staged patch id must match the report) |
 
 ## Manifest
 
-Versioned JSON, owned by the harness (`~/.config/pi-gate/manifests/<repoId>.json`).
-Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see `src/profiles.js`).
+Versioned JSON, owned by you, stored at `~/.config/pi-gate/manifests/<repoId>.json`.
+Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see [`src/profiles.js`](src/profiles.js)).
 
 ```jsonc
 {
@@ -62,6 +96,8 @@ Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see `src/profiles.
 ```
 
 `repoId` = the repo's root-commit sha (stable across moves), falling back to a path hash.
+`sensitivePatterns` flag changes to tests, lint/CI/package config, and the manifest itself
+so a patch that quietly weakens the checks is surfaced in the report.
 
 ## Report schema (`eval report --json`)
 
@@ -70,9 +106,17 @@ Built-in profiles: `node`, `python`, `go`, `rust`, `generic` (see `src/profiles.
 isolation, outputTail, fullLogPath`), `changedFilesBefore/After`, `unexpectedChanges`,
 `evaluatorSensitiveChanges`, `applyDecision` (`allowed|blocked|override-required`).
 
+## Requirements
+
+- **Node ≥ 18**, **git**, **coreutils `timeout`** (standard on Linux).
+- **Rootless user namespaces** (`unshare -rnpf`) for the network/pid sandbox. Where they
+  aren't available, checks fall back to an `env-only` mode (proxy vars, no kernel-level
+  network block) — the per-check `isolation` field in the report tells you which applied,
+  so the weaker mode is never silent.
+
 ## Tests
 
-```
+```sh
 npm test    # or: bash test/run.sh
 ```
 
@@ -80,12 +124,11 @@ npm test    # or: bash test/run.sh
 detection (agent edits tests/package.json), evaluator-config-not-in-tree, and a real
 network-isolation proof (outbound TCP blocked by default, allowed only on opt-in).
 
-## Status
+## Roadmap
 
-**Implementation slice 1** complete (manifest format + loader; clean-copy eval workspace;
-patch apply + checks with timeouts; JSON report + full logs; apply blocked on failure;
-destructive/tamper tests).
+YAML manifests, per-check expected-artifact assertions, a first-class lockfile/package-manifest
+drift check, and per-check (rather than whole-manifest) trust promotion.
 
-Next: YAML manifest support, per-check expected-artifact assertions, lockfile/manifest
-drift check as a first-class check, and review-gated promotion of detected checks
-(individual check trust rather than whole-manifest trust).
+## License
+
+MIT © Rene Zander. Bundles [cli-foundation](vendor/foundation.js) (vendored, zero deps).
