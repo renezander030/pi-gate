@@ -4,7 +4,7 @@ Harness-owned deterministic verification layer for **Pi agent** output. The agen
 *request* evaluation but cannot choose or modify the trusted evaluator commands,
 policies, baselines, or allowlists.
 
-Built on [cli-foundation](../../claude/cli-foundation/) — JSON output by default,
+Built on cli-foundation (vendored in `vendor/`) — JSON output by default,
 `-H/--human` for tables. Zero runtime dependencies.
 
 ## Why

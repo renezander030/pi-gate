@@ -8,7 +8,7 @@
 // fresh clone of --repo's HEAD, and only landed in --repo by the apply gate.
 import fs from 'node:fs';
 import path from 'node:path';
-import * as fdn from '../../../claude/cli-foundation/foundation.js';
+import * as fdn from '../vendor/foundation.js';
 import { git, repoRootOf } from './git.js';
 import { repoIdentity, stateDir } from './paths.js';
 import { computePatch, patchChangedFiles, createEvalWorkspace, applyPatchTo, workingTreeChanges, applyPatchToReal } from './workspace.js';
