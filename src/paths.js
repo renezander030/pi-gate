@@ -11,9 +11,9 @@ const XDG_STATE = process.env.XDG_STATE_HOME || path.join(HOME, '.local', 'state
 const XDG_CONFIG = process.env.XDG_CONFIG_HOME || path.join(HOME, '.config');
 
 // Trusted manifests: harness-owned, read-only contract with the agent.
-export const TRUSTED_MANIFEST_DIR = path.join(XDG_CONFIG, 'pi-safe', 'manifests');
+export const TRUSTED_MANIFEST_DIR = path.join(XDG_CONFIG, 'pi-evaluator', 'manifests');
 // Per-repo runtime state (patch + last report + logs + disposable eval workspace).
-const STATE_ROOT = path.join(XDG_STATE, 'pi-safe');
+const STATE_ROOT = path.join(XDG_STATE, 'pi-evaluator');
 
 export function ensureDir(d) { fs.mkdirSync(d, { recursive: true }); return d; }
 

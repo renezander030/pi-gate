@@ -1,5 +1,5 @@
 // profiles.js — built-in default manifests per repo profile.
-// These are DETECTED defaults (untrusted until `pi-safe eval trust`). They are
+// These are DETECTED defaults (untrusted until `pi-evaluator eval trust`). They are
 // intentionally read-only checks: format --check / lint / typecheck / test, never
 // commands that mutate the tree or reach the network by default.
 //
@@ -8,14 +8,14 @@
 
 const COMMON_SENSITIVE = [
   // evaluator-sensitive surfaces: changing these changes what "passing" means.
-  '.pi-safe/**', 'pi-safe.manifest.json', 'pi-safe.manifest.yaml',
+  '.pi-evaluator/**', 'pi-evaluator.manifest.json', 'pi-evaluator.manifest.yaml',
   '**/*.test.*', '**/*.spec.*', '**/test/**', '**/tests/**', '**/__tests__/**',
   '.github/**', '.gitlab-ci.yml', '.circleci/**', 'azure-pipelines.yml',
   '.eslintrc*', '.prettierrc*', 'biome.json', 'ruff.toml', '.flake8', 'tox.ini',
   '.golangci.yml', '.golangci.yaml', 'rustfmt.toml', 'clippy.toml',
 ];
 const COMMON_ALLOW = [
-  'node_modules/**', '.git/**', '*.log', '.npm/**', '.pi-safe-tmp/**',
+  'node_modules/**', '.git/**', '*.log', '.npm/**', '.pi-evaluator-tmp/**',
   '__pycache__/**', '*.pyc', '.pytest_cache/**', '.mypy_cache/**', '.ruff_cache/**',
   'target/**', 'dist/**', 'build/**', '.cache/**',
 ];

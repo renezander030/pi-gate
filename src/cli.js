@@ -1,4 +1,4 @@
-// cli.js — pi-safe command handlers. Built on cli-foundation (JSON default, -H human).
+// cli.js — pi-evaluator command handlers. Built on cli-foundation (JSON default, -H human).
 //
 // Model (faithful to the scope doc):
 //   --repo     the REAL repo: canonical target, kept clean until `apply`.
@@ -25,7 +25,7 @@ function ctxRepos(flags) {
 
 const hasFileAt = (root) => (name) => fs.existsSync(path.join(root, name));
 
-// pi-safe eval plan — show the selected manifest + commands (no execution).
+// pi-evaluator eval plan — show the selected manifest + commands (no execution).
 function evalPlan(flags, { human }) {
   const { repo, repoId } = ctxRepos(flags);
   const res = resolveManifest(repoId, hasFileAt(repo));
@@ -36,7 +36,7 @@ function evalPlan(flags, { human }) {
       id: c.id, command: c.command, cwd: c.cwd || '.',
       timeoutMs: c.timeoutMs || 60000, network: !!c.network,
     })),
-    note: res.trusted ? 'trusted manifest' : 'DETECT-ONLY: run `pi-safe eval trust` after review before apply is allowed',
+    note: res.trusted ? 'trusted manifest' : 'DETECT-ONLY: run `pi-evaluator eval trust` after review before apply is allowed',
   };
   fdn.emit(data, { human, table: () =>
     `manifest: ${data.source} (${data.trusted ? 'trusted' : 'DETECT-ONLY'}) profile=${data.profile} netns=${data.netns}\n` +
@@ -47,7 +47,7 @@ function evalPlan(flags, { human }) {
   });
 }
 
-// pi-safe eval run — compute patch, evaluate in isolated workspace, emit report.
+// pi-evaluator eval run — compute patch, evaluate in isolated workspace, emit report.
 function evalRun(flags, { human }) {
   const { repo, staging, repoId, repoIdKind } = ctxRepos(flags);
   const sd = stateDir(repoId);
@@ -119,15 +119,15 @@ function renderSummary(r) {
   return lines.join('\n');
 }
 
-// pi-safe eval report --json — print the last stable report.
+// pi-evaluator eval report --json — print the last stable report.
 function evalReport(flags) {
   const { repoId } = ctxRepos(flags);
   const r = loadReport(repoId);
-  if (!r) { console.error('no report yet; run `pi-safe eval run`'); process.exit(1); }
+  if (!r) { console.error('no report yet; run `pi-evaluator eval run`'); process.exit(1); }
   fdn.out(r);
 }
 
-// pi-safe eval trust — promote the detected manifest after human review.
+// pi-evaluator eval trust — promote the detected manifest after human review.
 function evalTrust(flags) {
   const { repo, repoId } = ctxRepos(flags);
   const res = resolveManifest(repoId, hasFileAt(repo));
@@ -147,12 +147,12 @@ export const commands = {
     return fn(flags, ctx);
   },
 
-  // pi-safe apply [--override <reason>] — land the verified patch into the real repo.
+  // pi-evaluator apply [--override <reason>] — land the verified patch into the real repo.
   apply(args, ctx) {
     const { flags } = fdn.parseArgs(args, ['repo', 'staging', 'override']);
     const { repo, staging, repoId } = ctxRepos(flags);
     const report = loadReport(repoId);
-    if (!report) { console.error('no evaluator report; run `pi-safe eval run` first'); process.exit(1); }
+    if (!report) { console.error('no evaluator report; run `pi-evaluator eval run` first'); process.exit(1); }
 
     // Staleness tripwire: the report must describe the CURRENT staged patch.
     const { patchPath, patchId } = computePatch(staging, repoId);
@@ -190,9 +190,9 @@ export const commands = {
   },
 
   help() {
-    console.error(`pi-safe — harness-owned deterministic evaluator for Pi agent output
+    console.error(`pi-evaluator — harness-owned deterministic evaluator for Pi agent output
 
-Usage: pi-safe <command> [--repo PATH] [--staging PATH] [--human]
+Usage: pi-evaluator <command> [--repo PATH] [--staging PATH] [--human]
 
   eval plan              show the selected manifest + checks (no execution)
   eval run               compute patch, evaluate in isolated workspace, write report
