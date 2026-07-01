@@ -11,16 +11,60 @@ import crypto from 'node:crypto';
 import { git } from './git.js';
 import { stateDir } from './paths.js';
 
+function isGitWorktree(root) {
+  try { return !!git(['rev-parse', '--show-toplevel'], { cwd: root }).trim(); }
+  catch { return false; }
+}
+
+function clearWorktreeExceptGit(root) {
+  for (const entry of fs.readdirSync(root)) {
+    if (entry === '.git') continue;
+    fs.rmSync(path.join(root, entry), { recursive: true, force: true });
+  }
+}
+
+function copyTreeContents(src, dest) {
+  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
+    if (entry.name === '.git') continue;
+    fs.cpSync(path.join(src, entry.name), path.join(dest, entry.name), {
+      recursive: true,
+      preserveTimestamps: true,
+      verbatimSymlinks: true,
+    });
+  }
+}
+
+function createPatchWorkspace(baseRepo, stagingCopy, repoId) {
+  const sd = stateDir(repoId);
+  const ws = path.join(sd, 'patch-workspace');
+  fs.rmSync(ws, { recursive: true, force: true });
+  git(['clone', '--local', '--no-hardlinks', '--quiet', baseRepo, ws]);
+  const head = git(['rev-parse', 'HEAD'], { cwd: baseRepo }).trim();
+  git(['checkout', '--quiet', '--detach', head], { cwd: ws });
+  clearWorktreeExceptGit(ws);
+  copyTreeContents(stagingCopy, ws);
+  return ws;
+}
+
 // Compute a binary-safe patch of the agent's uncommitted work (tracked + staged +
-// untracked, respecting .gitignore) relative to HEAD, WITHOUT mutating the repo.
-export function computePatch(repoRoot, repoId) {
+// untracked, respecting .gitignore) relative to HEAD, WITHOUT mutating the agent
+// tree. `stagingRoot` may be either a Git worktree or a plain pi-safe staging copy
+// without `.git`; in the latter case we mirror it onto a disposable clone first.
+export function computePatch(stagingRoot, repoId, baseRepo = null) {
+  const gitWorktree = isGitWorktree(stagingRoot);
+  if (!gitWorktree && !baseRepo) {
+    throw new Error('plain staging copies require the real repo path as baseRepo');
+  }
+  const patchRoot = gitWorktree
+    ? stagingRoot
+    : createPatchWorkspace(baseRepo, stagingRoot, repoId);
   const sd = stateDir(repoId);
   const tmpIndex = path.join(sd, '.tmp-index');
   try { fs.rmSync(tmpIndex, { force: true }); } catch {}
   // Seed throwaway index from HEAD, stage the whole working tree into it, diff.
-  git(['read-tree', 'HEAD'], { cwd: repoRoot, indexFile: tmpIndex });
-  git(['add', '-A'], { cwd: repoRoot, indexFile: tmpIndex });
-  const patch = git(['diff', '--cached', '--binary', 'HEAD'], { cwd: repoRoot, indexFile: tmpIndex });
+  git(['read-tree', 'HEAD'], { cwd: patchRoot, indexFile: tmpIndex });
+  git(['add', '-A'], { cwd: patchRoot, indexFile: tmpIndex });
+  const patch = git(['diff', '--cached', '--binary', 'HEAD'], { cwd: patchRoot, indexFile: tmpIndex });
   try { fs.rmSync(tmpIndex, { force: true }); } catch {}
   const patchPath = path.join(sd, 'agent.patch');
   fs.writeFileSync(patchPath, patch);

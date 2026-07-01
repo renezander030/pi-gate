@@ -18,7 +18,12 @@ import { evaluatorSensitive, unexpectedChanges, decideApply, saveReport, loadRep
 
 function ctxRepos(flags) {
   const repo = repoRootOf(flags.repo || process.cwd());
-  const staging = flags.staging ? repoRootOf(flags.staging) : repo;
+  const stagingPath = flags.staging ? path.resolve(flags.staging) : repo;
+  let staging = stagingPath;
+  try { staging = repoRootOf(stagingPath); } catch { /* plain pi-safe staging copy */ }
+  if (!fs.existsSync(staging)) {
+    throw new Error(`staging path does not exist: ${staging}`);
+  }
   const { id: repoId, kind } = repoIdentity(repo, git);
   return { repo, staging, repoId, repoIdKind: kind };
 }
@@ -52,7 +57,7 @@ function evalRun(flags, { human }) {
   const { repo, staging, repoId, repoIdKind } = ctxRepos(flags);
   const sd = stateDir(repoId);
 
-  const { patchPath, patchId, empty } = computePatch(staging, repoId);
+  const { patchPath, patchId, empty } = computePatch(staging, repoId, repo);
   if (empty) { fdn.out({ status: 'error', error: 'no agent changes detected in staging tree', repoId }); process.exit(2); }
 
   const ws = createEvalWorkspace(repo, repoId);
@@ -155,7 +160,7 @@ export const commands = {
     if (!report) { console.error('no evaluator report; run `pi-gate eval run` first'); process.exit(1); }
 
     // Staleness tripwire: the report must describe the CURRENT staged patch.
-    const { patchPath, patchId } = computePatch(staging, repoId);
+    const { patchPath, patchId } = computePatch(staging, repoId, repo);
     if (patchId !== report.patchId) {
       console.error(`stale report: staged patch ${patchId} != report patch ${report.patchId}; re-run eval`);
       process.exit(3);
@@ -202,7 +207,7 @@ Usage: pi-gate <command> [--repo PATH] [--staging PATH] [--human]
   apply --override "..."  force-apply with an explicit reason when checks failed
 
   --repo PATH            the real (canonical) repo; default: cwd
-  --staging PATH         the agent's working tree; default: --repo
+  --staging PATH         the agent's Git worktree or pi-safe staging copy; default: --repo
   -H, --human            table output instead of JSON
 
 Trust model: the evaluator config + runner live outside the agent's writable root,

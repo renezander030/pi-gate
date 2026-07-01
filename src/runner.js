@@ -12,6 +12,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 let _netnsOk = null;
+let _timeoutBin;
 // Probe once whether rootless pid+net+user namespaces work on this host.
 // We use a PID namespace too so that SIGKILL on the leader reaps the WHOLE tree
 // (a hung `npm`/`go`/`cargo` cannot outlive its check).
@@ -22,13 +23,26 @@ export function netnsAvailable() {
   return _netnsOk;
 }
 
+function timeoutBin() {
+  if (_timeoutBin !== undefined) return _timeoutBin;
+  for (const bin of ['timeout', 'gtimeout']) {
+    const r = spawnSync(bin, ['--version'], { encoding: 'utf8' });
+    if (r.status === 0 || (r.stderr || '').includes('illegal option')) {
+      _timeoutBin = bin;
+      return _timeoutBin;
+    }
+  }
+  _timeoutBin = null;
+  return _timeoutBin;
+}
+
 // Build the fixed environment. No inheritance of the caller's env beyond a safe core.
 // HOME/TMPDIR point OUTSIDE the git workspace so tool dotfiles (npm's .npm cache,
 // update-notifier, etc.) never look like agent-introduced file changes.
 function fixedEnv(ws, extra = {}, network = false) {
   const sandbox = path.join(path.dirname(ws), 'sandbox-home');
   const env = {
-    PATH: '/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
+    PATH: '/opt/homebrew/bin:/opt/homebrew/sbin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
     HOME: sandbox,
     TMPDIR: path.join(sandbox, 'tmp'),
     LANG: 'C.UTF-8',
@@ -62,7 +76,10 @@ export function runCheck(check, ws, logsDir) {
   const secs = Math.ceil(timeoutMs / 1000);
   // coreutils `timeout` enforces the wall-clock wall inside the sandbox; the
   // spawnSync timeout below is a backstop that SIGKILLs the (pid-ns) leader.
-  const guarded = ['timeout', '-s', 'KILL', '-k', '5', String(secs), 'sh', '-c', check.command];
+  const tb = timeoutBin();
+  const guarded = tb
+    ? [tb, '-s', 'KILL', '-k', '5', String(secs), 'sh', '-c', check.command]
+    : ['sh', '-c', check.command];
   let argv0, args;
   if (useNetns) { argv0 = 'unshare'; args = ['-rnpf', '--mount-proc', ...guarded]; }
   else { argv0 = guarded[0]; args = guarded.slice(1); }

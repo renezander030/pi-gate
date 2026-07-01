@@ -64,7 +64,26 @@ pi-gate apply --override "<reason>"                     # force-apply failing pa
 ```
 
 - `--repo` — the **real** repo (canonical target, kept clean until `apply`). Default: cwd.
-- `--staging` — the **agent's** working tree (a clone of `--repo` it edited). Default: `--repo`.
+- `--staging` — the **agent's** working tree or a plain `pi-safe` staging copy. Default: `--repo`.
+
+### `pi-safe` staging
+
+`pi-safe` intentionally copies the real project into `original` and `staging`
+without `.git`. `pi-gate` accepts that staging tree directly:
+
+```sh
+pi-safe diff SESSION_ID
+pi-gate eval run --repo /path/to/real-repo \
+  --staging ~/.pi-safe/sessions/SESSION_ID/staging -H
+pi-gate apply --repo /path/to/real-repo \
+  --staging ~/.pi-safe/sessions/SESSION_ID/staging
+```
+
+For a non-Git staging copy, `pi-gate` mirrors the staged files onto a disposable
+clone of the real repo, computes a patch there, then evaluates and applies that
+patch through the same trusted gate. The agent's staging tree is still never
+used as the evaluator workspace. Do not run `pi-safe apply` again for the same
+session after `pi-gate apply`; `pi-gate` has already landed the verified patch.
 
 ## Guarantees (all enforced and tested)
 

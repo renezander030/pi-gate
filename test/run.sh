@@ -99,6 +99,16 @@ else
   echo "  skip - no rootless netns on this host"
 fi
 
+echo "== T8: pi-safe-style staging copy without .git =="
+git -C "$REAL" checkout -q -- . ; git -C "$REAL" clean -qfd
+STG="$WORK/plain-staging"; cp -R "$REAL" "$STG"; rm -rf "$STG/.git"
+echo 'module.exports = 42; // plain staging copy' > "$STG/foo.js"
+echo 'plain copy note' > "$STG/plain-note.md"
+run eval run >/dev/null 2>&1
+[ "$(status)" = "pass" ] && ok "plain staging copy evaluates" || bad "plain staging copy should pass (got $(status))"
+run apply >/dev/null 2>&1 && ok "plain staging copy applies through gate" || bad "plain staging copy should apply"
+grep -q 'plain staging copy' "$REAL/foo.js" && [ -f "$REAL/plain-note.md" ] && ok "real repo received plain staging patch" || bad "plain staging patch not landed"
+
 echo
 echo "RESULT: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]
